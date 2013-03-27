@@ -27,6 +27,9 @@ function acec_form_node_form_alter(&$form, &$form_state, $form_id) {
  * Chuck the current user into the list of presenters.
  */
 function acec_node_presave($node) {
+  if ($node->type != 'session')
+    return;
+
   $langcode = $node->language;
 
   if (empty($node->field_speakers)) {
