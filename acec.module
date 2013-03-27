@@ -1,0 +1,140 @@
+<?php
+/**
+ * @file
+ */
+
+/**
+ * Implements hook_email_registration_name().
+ *
+ * Generate usernames that are identical to the email address.
+ */
+function acec_email_registration_name($edit, $account) {
+  return $account->mail;
+}
+
+/**
+ * Implements hook_form_BASE_FORM_ID_alter().
+ */
+function acec_form_node_form_alter(&$form, &$form_state, $form_id) {
+  // Only show the revisions info if the anonymous user has permission
+  // to mess with node revisions to begin with. For any node type.
+  if (empty($form['uid']['#value'])) {
+    $form['revision_information']['#access'] = user_access('view content revisions');
+  }
+}
+
+/*
+ * Chuck the current user into the list of presenters.
+ */
+function acec_node_presave($node) {
+  $langcode = $node->language;
+
+  if (empty($node->field_speakers)) {
+    $node->field_speakers[$langcode][0] = array('target_id' => $node->uid);
+  }
+  else {
+    $uids = array();
+    foreach ($node->field_speakers[$langcode] as $speaker) {
+      $uids[] = $speaker['target_id'];
+    }
+    if (!in_array($node->uid, $uids)) {
+      $node->field_speakers[$langcode][] = array('target_id' => $node->uid);
+    }
+  }
+}
+
+/**
+ * Implements hook_flag().
+ *
+ * Apply some logic when a user selects a session.
+ */
+function acec_flag($action, $flag, $content_id, $account) {
+
+  if ($action == 'flag' && $flag->name == 'session_schedule') {
+    $session = node_load($content_id);
+
+    // @TODO
+    // Check if there are already as many delegates in here as the room will take.
+
+    // @TODO
+    // Check for overlapping timeslots too.
+
+    // Find all sessions that share a timeslot with this session
+    // and have been flagged by the current user.
+    $query = new EntityFieldQuery();
+    $query->entityCondition('entity_type', 'node')
+          ->entityCondition('bundle', 'session')
+          ->entityCondition('entity_id', $content_id, '<>')
+          ->fieldCondition('field_timeslot', 'nid', $session->field_timeslot[$session->language][0]['nid'], '=');
+    // Tag the query, so we can join the flags.
+    $query->addTag('session_schedule_flag');
+
+    // Add the flag to the query.
+    $query->addMetaData('flag', $flag);
+
+    // And add the user.
+    $query->addMetaData('account', $account);
+
+    $clashes = $query->execute();
+
+    // Unflag all the clashing nodes and let the user know.
+    if (!empty($clashes['node'])) {
+      foreach ($clashes['node'] as $nid => $info) {
+        // Unflag the node. Need to do this manually or we get a hook callback loop.
+        db_delete('flag_content')
+          ->condition('content_id', $nid)
+          ->condition('fid', $flag->fid)
+          ->condition('uid', $account->uid)
+          ->execute();
+
+        // Tell the user what we did.
+        $node = node_load($nid);
+        drupal_set_message(t('Removed %title from your schedule due to a time clash', array('%title' => $node->title)), 'warning');
+        unset($node);
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_query_TAG_alter().
+ */
+function acec_query_session_schedule_flag_alter(QueryAlterableInterface $query) {
+
+  $tables =& $query->getTables();
+
+  foreach ($tables as &$table) {
+    // Grab the first alias.
+    if (empty($alias)) {
+      $alias = $table['alias'];
+    }
+  }
+
+  // Grab the metadata we need to join flags.
+  $flag = $query->getMetadata('flag');
+  $account = $query->getMetadata('account');
+
+  // Join flags by the current user.
+  $query->innerJoin('flag_content', 'f', 'f.fid = ' . $flag->fid . ' AND f.content_id = ' . $alias . '.entity_id AND f.uid = ' . $account->uid);
+}
+
+/**
+ * Mess with the flag link if own session.
+ */
+
+/**
+ * Implements hook_ctools_plugin_directory().
+ */
+function acec_ctools_plugin_directory($owner, $plugin_type) {
+  if ($owner == 'ctools' && $plugin_type == 'access') {
+    return 'plugins/access';
+  }
+
+  if ($owner == 'ctools' && $plugin_type == 'contexts') {
+    return 'plugins/contexts';
+  }
+
+  if ($owner == 'ctools' && $plugin_type == 'relationships') {
+    return 'plugins/relationships';
+  }
+}
