@@ -1,5 +1,3 @@
 name = ACEC
 description = ACEC module, which contains glue code to make Converge provide a smoother UX.
 core = 7.x
-
-files[] = views/handlers/views_handler_area_cod_session_check.inc
