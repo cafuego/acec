@@ -59,15 +59,12 @@ function acec_compare_user_lists_access_check($conf, $context) {
     $context[1]->data = array($context[1]->data->uid => $context[1]->data);
   }
 
-  $accounts1 = array_keys($context[0]->data);
-  $accounts2 = array_keys($context[1]->data);
-
-  $access = array_intersect_assoc($accounts1, $accounts2);
+  $access = array_intersect_key($context[0]->data, $context[1]->data);
 
   // xor returns false if the two bools are the same, and true if they are not.
   // i.e, if we asked for equality and they are equal, return true.
   // If we asked for inequality and they are equal, return false.
-  return (array_intersect_assoc($accounts1, $accounts2)) xor empty($conf['contains']);
+  return ($access xor empty($conf['contains']));
 }
 
 /**
