@@ -66,12 +66,18 @@ function acec_context_create_entities($empty, $data = NULL, $conf = FALSE, $plug
     return $context;
   }
 
-  $data = entity_load($entity_type, explode(',', $data));
+  // Ensure that we feed an array to entity_load()
+  $data = explode(',', $data);
+  if (!is_array($data)) {
+    $data[] = $data;
+  }
+
+  $data = entity_load($entity_type, $data);
 
   if (!empty($data)) {
-    $context->data     = $data;
+    $context->data = $data;
     if (!empty($entity['entity keys']['label'])) {
-      $context->title    = t('A list of users');
+      $context->title = t('A list of users');
     }
 
     if ($entity['entity keys']['bundle']) {
